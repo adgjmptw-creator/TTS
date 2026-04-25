@@ -17,6 +17,7 @@ report, hit play, and listen on the go.
   - 再生位置を自動保存。リロードしても続きから再生
   - Service Worker でアプリ本体をキャッシュ、圏外でも起動可
 - **PWA**: ホーム画面に追加してアプリのように利用可能
+- **バックグラウンド再生対応**: 別アプリに切り替えたりロック画面に戻っても読み上げが継続。ロック画面 / 通知エリアから再生・一時停止・前後の文スキップ操作可（MediaSession API）
 - **ショートカット**: `Space` = 再生/一時停止、`←` / `→` = 文スキップ
 - **ダークモード**: OS 設定に追従
 - **外部依存なし**: フレームワークもビルドも不要のプレーン HTML/CSS/JS
@@ -45,8 +46,8 @@ python3 -m http.server 8000
 | プラットフォーム | 備考 |
 |---|---|
 | Chrome / Edge (Desktop) | OS インストール済みのローカル音声を使用 |
-| Safari (macOS / iOS) | iOS はユーザー操作（ボタン押下）で再生開始 |
-| Android Chrome | Android TTS エンジンのローカル音声を使用 |
+| Safari (macOS / iOS) | iOS はユーザー操作（ボタン押下）で再生開始。バックグラウンド再生は OS 制限により短時間で停止することがあります |
+| Android Chrome | Android TTS エンジンのローカル音声を使用。無音オーディオ + MediaSession でバックグラウンド再生に対応 |
 
 端末に日本語・英語の TTS ボイスがインストールされている必要があります。
 - **iOS / macOS**: 設定 → アクセシビリティ → 読み上げコンテンツ → 声
@@ -61,6 +62,7 @@ python3 -m http.server 8000
 ├── styles.css              # スタイル
 ├── app.js                  # UI 制御
 ├── tts.js                  # 読み上げエンジン
+├── keepalive.js            # 無音オーディオ（バックグラウンド再生用）
 ├── i18n.js                 # 日本語 / 英語辞書
 ├── storage.js              # localStorage ラッパ
 ├── sw.js                   # Service Worker

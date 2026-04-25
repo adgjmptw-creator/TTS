@@ -1,6 +1,7 @@
 import { t, setLang, getLang, applyTranslations, onLangChange } from "./i18n.js";
 import { storage } from "./storage.js";
 import { Player, getLocalVoices, detectLang } from "./tts.js";
+import { keepalive } from "./keepalive.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -167,6 +168,47 @@ function schedulePositionSave() {
   }, 250);
 }
 
+function setupMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  const ms = navigator.mediaSession;
+  try {
+    ms.setActionHandler("play", () => {
+      if (player.state !== "playing") {
+        if (!player.sentences.length) player.setText(els.textInput.value);
+        keepalive.start();
+        player.play();
+      }
+    });
+    ms.setActionHandler("pause", () => player.pause());
+    ms.setActionHandler("stop", () => { player.stop(); keepalive.stop(); });
+    ms.setActionHandler("previoustrack", () => player.prev());
+    ms.setActionHandler("nexttrack", () => player.next());
+    ms.setActionHandler("seekbackward", () => player.prev());
+    ms.setActionHandler("seekforward", () => player.next());
+  } catch { /* some browsers don't support all action types */ }
+}
+
+function updateMediaSessionMetadata(sentence, index, total) {
+  if (!("mediaSession" in navigator) || typeof window.MediaMetadata !== "function") return;
+  const trimmed = (sentence || "").slice(0, 80);
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: trimmed || t("app.title"),
+    artist: t("app.title"),
+    album: total ? `${index + 1} / ${total}` : "",
+    artwork: [
+      { src: "icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { src: "icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml" }
+    ]
+  });
+}
+
+function updateMediaSessionPlaybackState(state) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.playbackState =
+    state === "playing" ? "playing" :
+    state === "paused"  ? "paused"  : "none";
+}
+
 async function requestWakeLock() {
   if (!els.wakeLock.checked) return;
   if (!("wakeLock" in navigator)) return;
@@ -234,6 +276,10 @@ function wireEvents() {
       player.pause();
     } else {
       if (!player.sentences.length) player.setText(els.textInput.value);
+      // Start silent keepalive synchronously inside the user gesture so the
+      // mobile autoplay policy lets it through; this prevents the tab from
+      // being throttled when the user switches apps.
+      keepalive.start();
       player.play();
       requestWakeLock();
     }
@@ -241,6 +287,7 @@ function wireEvents() {
 
   els.stopBtn.addEventListener("click", () => {
     player.stop();
+    keepalive.stop();
     releaseWakeLock();
   });
 
@@ -273,19 +320,27 @@ function wireEvents() {
   });
 
   // Player callbacks
-  player.on("progress", (index, total) => {
+  player.on("progress", (index, total, sentence) => {
     updateProgress(index, total);
     updateActiveSentence(index);
     schedulePositionSave();
+    updateMediaSessionMetadata(sentence, index, total);
   });
   player.on("state", (state) => {
     updatePlayButton(state);
-    if (state === "playing") setStatus(t("status.playing"));
-    else if (state === "paused") setStatus(t("status.paused"));
-    else if (state === "stopped") setStatus(t("status.stopped"));
-    else if (state === "finished") {
+    updateMediaSessionPlaybackState(state);
+    if (state === "playing") {
+      setStatus(t("status.playing"));
+    } else if (state === "paused") {
+      setStatus(t("status.paused"));
+      keepalive.stop();
+    } else if (state === "stopped") {
+      setStatus(t("status.stopped"));
+      keepalive.stop();
+    } else if (state === "finished") {
       setStatus(t("status.finished"));
       storage.clearPosition();
+      keepalive.stop();
       releaseWakeLock();
     }
   });
@@ -348,6 +403,7 @@ async function init() {
   }
 
   wireEvents();
+  setupMediaSession();
   await loadVoices();
   updatePlayButton(player.state);
 

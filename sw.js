@@ -2,7 +2,7 @@
 // Cache-first for bundled assets so the app launches offline.
 // Bump CACHE_NAME whenever any cached file changes.
 
-const CACHE_NAME = "tts-reader-v1";
+const CACHE_NAME = "tts-reader-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const ASSETS = [
   "./tts.js",
   "./i18n.js",
   "./storage.js",
+  "./keepalive.js",
   "./manifest.webmanifest",
   "./icons/icon-192.svg",
   "./icons/icon-512.svg"
